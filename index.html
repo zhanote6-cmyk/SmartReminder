@@ -98,7 +98,14 @@
       line-height: 1;
     }
     .ring-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
-    .ring-goal { font-size: 12px; color: var(--muted); margin-top: 2px; opacity: 0.7; }
+    .ring-goal {
+      font-size: 12px;
+      color: var(--green);
+      margin-top: 2px;
+      cursor: pointer;
+      text-decoration: underline dotted;
+      opacity: 0.85;
+    }
 
     .pct-badge {
       margin-top: 16px;
@@ -181,6 +188,89 @@
       background: var(--card);
       color: var(--danger);
       border: 1px solid var(--border);
+    }
+
+    /* ── GOAL MODAL ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--card);
+      border-radius: 24px 24px 0 0;
+      padding: 24px 20px 40px;
+      width: 100%;
+      max-width: 420px;
+    }
+    .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+    .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .goal-presets {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .goal-preset {
+      padding: 10px 0;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .goal-preset.selected {
+      border-color: var(--green);
+      background: var(--green-light);
+      color: var(--green-dark);
+    }
+    .goal-input-wrap {
+      display: flex;
+      gap: 8px;
+    }
+    .goal-input {
+      flex: 1;
+      padding: 13px 14px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      outline: none;
+    }
+    .goal-input:focus { border-color: var(--green); }
+    .btn-save {
+      padding: 13px 20px;
+      border-radius: 12px;
+      border: none;
+      background: var(--green);
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn-cancel {
+      width: 100%;
+      margin-top: 10px;
+      padding: 13px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      cursor: pointer;
     }
 
     /* ── WEEK CHART ── */
@@ -274,6 +364,24 @@
       100% { transform: scale(1); }
     }
     .flash { animation: stepFlash 0.25s ease; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1a1a18;
+      color: #fff;
+      padding: 12px 22px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 200;
+      transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
   </style>
 </head>
 <body>
@@ -294,7 +402,7 @@
       <div class="ring-center">
         <div class="ring-steps" id="stepCount">0</div>
         <div class="ring-label">қадам</div>
-        <div class="ring-goal">мақсат: 10 000</div>
+        <div class="ring-goal" id="goalLabel" onclick="openGoalModal()">мақсат: 100 000</div>
       </div>
     </div>
     <div class="pct-badge" id="pctBadge">0% — жол басталды</div>
@@ -335,7 +443,7 @@
   <div class="achieve" id="achieve">
     <div class="achieve-icon">🏆</div>
     <div class="achieve-text">Мақсатқа жеттіңіз!</div>
-    <div class="achieve-sub">Бүгін 10 000 қадамнан асты — керемет!</div>
+    <div class="achieve-sub" id="achieveSub">Бүгін мақсатқа жеттіңіз — керемет!</div>
   </div>
 
   <!-- WEEK -->
@@ -360,16 +468,38 @@
 
 </div>
 
+<!-- GOAL MODAL -->
+<div class="modal-overlay" id="goalModal" onclick="closeGoalModal(event)">
+  <div class="modal">
+    <div class="modal-title">🎯 Мақсат белгілеу</div>
+    <div class="modal-sub">Күнделікті қадам мақсатын таңдаңыз</div>
+    <div class="goal-presets">
+      <div class="goal-preset" data-val="5000" onclick="selectPreset(5000)">5 000</div>
+      <div class="goal-preset" data-val="7500" onclick="selectPreset(7500)">7 500</div>
+      <div class="goal-preset" data-val="10000" onclick="selectPreset(10000)">10 000</div>
+      <div class="goal-preset" data-val="15000" onclick="selectPreset(15000)">15 000</div>
+    </div>
+    <div class="goal-input-wrap">
+      <input class="goal-input" id="goalInput" type="number" placeholder="Өз санын жазыңыз..." min="1" />
+      <button class="btn-save" onclick="saveGoal()">Сақтау</button>
+    </div>
+    <button class="btn-cancel" onclick="closeGoalModal()">Бас тарту</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
 <script>
   // Telegram Web App init
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg) { tg.ready(); tg.expand(); }
 
-  const GOAL = 10000;
   const CIRCUMFERENCE = 2 * Math.PI * 85; // ~534
   const DAYS_KK = ['Жс','Дс','Сс','Ср','Бс','Жм','Сн'];
 
   let steps = 0;
+  let goal = 100000;
   let isTracking = false;
   let lastAcc = null;
   let startTime = null;
@@ -377,6 +507,7 @@
   let minInterval = 280;
   let threshold = 11;
   let fallbackInterval = null;
+  let minuteTimer = null;
 
   const today = new Date().toDateString();
 
@@ -385,21 +516,30 @@
   document.getElementById('dateLabel').textContent =
     now.toLocaleDateString('kk-KZ', { day: 'numeric', month: 'long' });
 
-  // Storage
+  // ── STORAGE ────────────────────────────────────────────────────────────────
   function loadWeek() {
     try { return JSON.parse(localStorage.getItem('sr_week') || '{}'); } catch { return {}; }
   }
   function saveWeek(data) {
     try { localStorage.setItem('sr_week', JSON.stringify(data)); } catch {}
   }
+  function loadGoal() {
+    try { return parseInt(localStorage.getItem('sr_goal') || '100000'); } catch { return 100000; }
+  }
+  function saveGoalStorage(val) {
+    try { localStorage.setItem('sr_goal', String(val)); } catch {}
+  }
 
+  // ── UI UPDATE ──────────────────────────────────────────────────────────────
   function updateUI() {
     // Steps
-    const el = document.getElementById('stepCount');
-    el.textContent = steps.toLocaleString();
+    document.getElementById('stepCount').textContent = steps.toLocaleString();
+
+    // Goal label
+    document.getElementById('goalLabel').textContent = 'мақсат: ' + goal.toLocaleString();
 
     // Ring
-    const pct = Math.min(steps / GOAL, 1);
+    const pct = Math.min(steps / goal, 1);
     const offset = CIRCUMFERENCE - pct * CIRCUMFERENCE;
     document.getElementById('ringFill').style.strokeDashoffset = offset;
     document.getElementById('ringFill').style.strokeDasharray = CIRCUMFERENCE;
@@ -423,9 +563,17 @@
     }
 
     // Achieve
-    if (steps >= GOAL) {
-      document.getElementById('achieve').style.display = 'block';
+    if (steps >= goal) {
+      const el = document.getElementById('achieve');
+      el.style.display = 'block';
+      document.getElementById('achieveSub').textContent =
+        `Бүгін ${steps.toLocaleString()} қадам жүрдіңіз — керемет!`;
     }
+
+    // Presets highlight
+    document.querySelectorAll('.goal-preset').forEach(el => {
+      el.classList.toggle('selected', parseInt(el.dataset.val) === goal);
+    });
 
     // Save
     const week = loadWeek();
@@ -446,10 +594,9 @@
       weekTotal += s;
       bars.push({ label: DAYS_KK[d.getDay()], steps: s, isToday: i === 0 });
     }
-
     document.getElementById('weekTotal').textContent = weekTotal.toLocaleString() + ' қадам';
 
-    const maxSteps = Math.max(...bars.map(b => b.steps), 1000);
+    const maxSteps = Math.max(...bars.map(b => b.steps), goal);
     const container = document.getElementById('weekBars');
     container.innerHTML = '';
     bars.forEach(b => {
@@ -466,12 +613,12 @@
     });
   }
 
+  // ── STEP LOGIC ─────────────────────────────────────────────────────────────
   function flashStep() {
     const el = document.getElementById('stepCount');
     el.classList.remove('flash');
     void el.offsetWidth;
     el.classList.add('flash');
-
     const dot = document.getElementById('pulseDot');
     dot.style.background = '#5DCAA5';
     setTimeout(() => dot.style.background = '', 150);
@@ -502,6 +649,7 @@
     lastAcc = { x, y, z };
   }
 
+  // ── TRACKING ───────────────────────────────────────────────────────────────
   function startTracking() {
     isTracking = true;
     startTime = startTime || Date.now();
@@ -509,6 +657,16 @@
     document.getElementById('startBtn').style.background = '#888780';
     document.getElementById('pulseDot').className = 'pulse-dot active';
     document.getElementById('statusText').textContent = 'Белсенді — телефонды алып жүріңіз!';
+
+    // Минут таймері
+    if (!minuteTimer) {
+      minuteTimer = setInterval(() => {
+        if (startTime) {
+          document.getElementById('statMin').textContent =
+            Math.round((Date.now() - startTime) / 60000);
+        }
+      }, 10000);
+    }
   }
 
   function stopTracking() {
@@ -529,32 +687,22 @@
 
   function startFallback() {
     startTracking();
-    document.getElementById('statusText').textContent = 'Симуляция — шайқаңыз немесе жүріңіз';
-    // Симуляция: экранды шайқаған кезде DeviceMotion чик болмаса
+    document.getElementById('statusText').textContent = 'Симуляция режимі — шайқаңыз';
     fallbackInterval = setInterval(() => {
       if (!isTracking) return;
-      // Simulate random walking steps
       if (Math.random() > 0.45) countStep();
     }, 700);
   }
 
   function toggleTracking() {
-    if (isTracking) {
-      stopTracking();
-      return;
-    }
+    if (isTracking) { stopTracking(); return; }
 
     if (typeof DeviceMotionEvent !== 'undefined' &&
         typeof DeviceMotionEvent.requestPermission === 'function') {
-      // iOS 13+
       DeviceMotionEvent.requestPermission()
-        .then(state => {
-          if (state === 'granted') startWithSensor();
-          else startFallback();
-        })
+        .then(state => { state === 'granted' ? startWithSensor() : startFallback(); })
         .catch(() => startFallback());
     } else if (typeof DeviceMotionEvent !== 'undefined') {
-      // Android / older
       startWithSensor();
     } else {
       startFallback();
@@ -566,6 +714,7 @@
     if (!confirm('Бүгінгі ' + steps.toLocaleString() + ' қадамды тазалайсыз ба?')) return;
     steps = 0;
     startTime = null;
+    if (minuteTimer) { clearInterval(minuteTimer); minuteTimer = null; }
     document.getElementById('achieve').style.display = 'none';
     document.getElementById('statMin').textContent = '0';
     const week = loadWeek();
@@ -574,27 +723,89 @@
     updateUI();
   }
 
+  // ── GOAL MODAL ─────────────────────────────────────────────────────────────
+  function openGoalModal() {
+    document.getElementById('goalModal').classList.add('open');
+    document.getElementById('goalInput').value = '';
+    document.querySelectorAll('.goal-preset').forEach(el => {
+      el.classList.toggle('selected', parseInt(el.dataset.val) === goal);
+    });
+  }
+
+  function closeGoalModal(e) {
+    if (!e || e.target === document.getElementById('goalModal')) {
+      document.getElementById('goalModal').classList.remove('open');
+    }
+  }
+
+  function selectPreset(val) {
+    goal = val;
+    document.getElementById('goalInput').value = '';
+    document.querySelectorAll('.goal-preset').forEach(el => {
+      el.classList.toggle('selected', parseInt(el.dataset.val) === val);
+    });
+  }
+
+  function saveGoal() {
+    const inputVal = parseInt(document.getElementById('goalInput').value);
+    if (document.getElementById('goalInput').value && (!inputVal || inputVal < 1)) {
+      showToast('❌ 1-ден үлкен санды жазыңыз');
+      return;
+    }
+    if (document.getElementById('goalInput').value && inputVal) {
+      goal = inputVal;
+    }
+    saveGoalStorage(goal);
+    closeGoalModal();
+    updateUI();
+    showToast('✅ Мақсат сақталды: ' + goal.toLocaleString() + ' қадам');
+  }
+
+  // ── TOAST ──────────────────────────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // ── SEND TO BOT ────────────────────────────────────────────────────────────
   function sendToBot() {
     const km = (steps * 0.00078).toFixed(2);
     const cal = Math.round(steps * 0.04);
     const min = startTime ? Math.round((Date.now() - startTime) / 60000) : 0;
-    const msg = `👟 Бүгін ${steps.toLocaleString()} қадам жүрдім!\n📍 ${km} км | 🔥 ${cal} кал | ⏱ ${min} мин`;
+    const pct = Math.round(steps / goal * 100);
+
+    const payload = JSON.stringify({
+      type: 'steps',
+      steps: steps,
+      goal: goal,
+      km: parseFloat(km),
+      cal: cal,
+      min: min,
+      pct: pct,
+      date: today
+    });
 
     if (tg && tg.sendData) {
-      tg.sendData(JSON.stringify({ type: 'steps', steps, km, cal, min, date: today }));
+      tg.sendData(payload);
     } else {
-      // Fallback: clipboard
+      // Браузерде тестілеу үшін
+      const msg = `👟 Бүгін ${steps.toLocaleString()} қадам жүрдім!\n` +
+                  `🎯 Мақсат: ${goal.toLocaleString()} қадам (${pct}%)\n` +
+                  `📍 ${km} км | 🔥 ${cal} кал | ⏱ ${min} мин`;
       if (navigator.clipboard) {
         navigator.clipboard.writeText(msg).then(() => {
-          alert('Хабарлама көшірілді! Ботқа жібере аласыз:\n\n' + msg);
+          showToast('📋 Хабарлама көшірілді!');
         });
       } else {
-        alert('Бүгінгі нәтиже:\n\n' + msg);
+        alert(msg);
       }
     }
   }
 
-  // Init
+  // ── INIT ───────────────────────────────────────────────────────────────────
+  goal = loadGoal();
   const saved = loadWeek();
   if (saved[today]) steps = saved[today];
   updateUI();
