@@ -9,9 +9,9 @@ from telegram.ext import (
 )
 
 # ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
-BOT_TOKEN = os.environ.get("8666538542:AAHivmbSlTWIIP9_pnd6YKKQv1N2LNa7GU8")   # Railway Environment Variables-тан алынады
-BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "smart2026")
-WEBAPP_URL = os.environ.get("https://github.com/zhanote6-cmyk/SmartReminder")  # Railway-дегі index.html URL
+BOT_TOKEN = ("8666538542:AAHivmbSlTWIIP9_pnd6YKKQv1N2LNa7GU8")   # Railway Environment Variables-тан алынады
+BOT_PASSWORD = ("BOT_PASSWORD", "smart2026")
+WEBAPP_URL = ("https://github.com/zhanote6-cmyk/SmartReminder")  # Railway-дегі index.html URL
 DATA_FILE = "user_data.json"
 
 # ─── СОСТОЯНИЯ ───────────────────────────────────────────────────────────────
