@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Smart Reminder — Қадамсан</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --green: #1D9E75;
+      --green-light: #E1F5EE;
+      --green-mid: #5DCAA5;
+      --green-dark: #0F6E56;
+      --bg: #f5f5f3;
+      --card: #ffffff;
+      --text: #1a1a18;
+      --muted: #888780;
+      --border: rgba(0,0,0,0.08);
+      --danger: #E24B4A;
+      --danger-bg: #FCEBEB;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111110;
+        --card: #1c1c1a;
+        --text: #f0efe8;
+        --muted: #888780;
+        --border: rgba(255,255,255,0.08);
+        --green-light: #04342C;
+      }
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overscroll-behavior: none;
+    }
+
+    .app {
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 0 0 100px;
+    }
+
+    /* ── HEADER ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 20px 0;
+    }
+    .topbar-title { font-size: 15px; font-weight: 500; color: var(--text); }
+    .topbar-date { font-size: 13px; color: var(--muted); }
+
+    /* ── RING ── */
+    .ring-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 20px 20px;
+    }
+
+    .ring-wrap {
+      position: relative;
+      width: 200px;
+      height: 200px;
+    }
+    .ring-svg { width: 200px; height: 200px; transform: rotate(-90deg); }
+    .ring-track { fill: none; stroke: var(--border); stroke-width: 12; }
+    .ring-fill {
+      fill: none;
+      stroke: var(--green);
+      stroke-width: 12;
+      stroke-linecap: round;
+      stroke-dasharray: 534;
+      stroke-dashoffset: 534;
+      transition: stroke-dashoffset 0.5s cubic-bezier(.4,0,.2,1);
+    }
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .ring-steps {
+      font-size: 44px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -2px;
+      line-height: 1;
+    }
+    .ring-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .ring-goal {
+      font-size: 12px;
+      color: var(--green);
+      margin-top: 2px;
+      cursor: pointer;
+      text-decoration: underline dotted;
+      opacity: 0.85;
+    }
+
+    .pct-badge {
+      margin-top: 16px;
+      background: var(--green-light);
+      color: var(--green-dark);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 18px;
+      border-radius: 999px;
+      transition: all 0.3s;
+    }
+
+    /* ── STATS ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 0 16px 16px;
+    }
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 12px;
+      text-align: center;
+    }
+    .stat-icon { font-size: 20px; margin-bottom: 6px; }
+    .stat-val { font-size: 20px; font-weight: 600; color: var(--text); line-height: 1; }
+    .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    /* ── STATUS ── */
+    .status-pill {
+      margin: 0 16px 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pulse-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .pulse-dot.active {
+      background: var(--green);
+      box-shadow: 0 0 0 0 rgba(29,158,117,0.4);
+      animation: ripple 1.5s infinite;
+    }
+    @keyframes ripple {
+      0% { box-shadow: 0 0 0 0 rgba(29,158,117,0.4); }
+      70% { box-shadow: 0 0 0 8px rgba(29,158,117,0); }
+      100% { box-shadow: 0 0 0 0 rgba(29,158,117,0); }
+    }
+    .status-text { font-size: 13px; color: var(--muted); flex: 1; }
+
+    /* ── BUTTONS ── */
+    .btn-row { display: flex; gap: 10px; padding: 0 16px 16px; }
+    .btn {
+      flex: 1;
+      padding: 15px;
+      border-radius: 14px;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    .btn:active { transform: scale(0.97); opacity: 0.85; }
+    .btn-start {
+      background: var(--green);
+      color: #fff;
+    }
+    .btn-reset {
+      background: var(--card);
+      color: var(--danger);
+      border: 1px solid var(--border);
+    }
+
+    /* ── GOAL MODAL ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--card);
+      border-radius: 24px 24px 0 0;
+      padding: 24px 20px 40px;
+      width: 100%;
+      max-width: 420px;
+    }
+    .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+    .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .goal-presets {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .goal-preset {
+      padding: 10px 0;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .goal-preset.selected {
+      border-color: var(--green);
+      background: var(--green-light);
+      color: var(--green-dark);
+    }
+    .goal-input-wrap {
+      display: flex;
+      gap: 8px;
+    }
+    .goal-input {
+      flex: 1;
+      padding: 13px 14px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      outline: none;
+    }
+    .goal-input:focus { border-color: var(--green); }
+    .btn-save {
+      padding: 13px 20px;
+      border-radius: 12px;
+      border: none;
+      background: var(--green);
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn-cancel {
+      width: 100%;
+      margin-top: 10px;
+      padding: 13px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    /* ── WEEK CHART ── */
+    .week-card {
+      margin: 0 16px 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .week-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .week-title { font-size: 14px; font-weight: 500; color: var(--text); }
+    .week-total { font-size: 13px; color: var(--green); font-weight: 500; }
+    .week-bars { display: flex; gap: 8px; align-items: flex-end; height: 80px; }
+    .wbar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .wbar-bg {
+      width: 100%;
+      background: var(--bg);
+      border-radius: 6px;
+      height: 64px;
+      position: relative;
+      overflow: hidden;
+    }
+    .wbar-fill {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: var(--green-mid);
+      border-radius: 6px;
+      transition: height 0.5s cubic-bezier(.4,0,.2,1);
+    }
+    .wbar-fill.today { background: var(--green); }
+    .wbar-day { font-size: 10px; color: var(--muted); font-weight: 500; }
+
+    /* ── ACHIEVE ── */
+    .achieve {
+      margin: 0 16px 16px;
+      background: var(--green-light);
+      border-radius: 16px;
+      padding: 16px;
+      text-align: center;
+      display: none;
+    }
+    .achieve-icon { font-size: 32px; margin-bottom: 8px; }
+    .achieve-text { font-size: 15px; font-weight: 500; color: var(--green-dark); }
+    .achieve-sub { font-size: 13px; color: var(--green); margin-top: 4px; }
+
+    /* ── BOT SEND ── */
+    .bot-card {
+      margin: 0 16px 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .bot-card-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+    .bot-card-sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .btn-send {
+      width: 100%;
+      padding: 13px;
+      border-radius: 12px;
+      border: 1px solid var(--green);
+      background: var(--green-light);
+      color: var(--green-dark);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .btn-send:active { transform: scale(0.98); }
+
+    /* ── FOOTER ── */
+    .footer-note {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 0 20px;
+      line-height: 1.6;
+      opacity: 0.7;
+    }
+
+    /* ── STEP FLASH ── */
+    @keyframes stepFlash {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+    .flash { animation: stepFlash 0.25s ease; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1a1a18;
+      color: #fff;
+      padding: 12px 22px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 200;
+      transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <span class="topbar-title">👟 Smart Reminder</span>
+    <span class="topbar-date" id="dateLabel"></span>
+  </div>
+
+  <!-- RING -->
+  <div class="ring-section">
+    <div class="ring-wrap">
+      <svg class="ring-svg" viewBox="0 0 200 200">
+        <circle class="ring-track" cx="100" cy="100" r="85"/>
+        <circle class="ring-fill" id="ringFill" cx="100" cy="100" r="85"/>
+      </svg>
+      <div class="ring-center">
+        <div class="ring-steps" id="stepCount">0</div>
+        <div class="ring-label">қадам</div>
+        <div class="ring-goal" id="goalLabel" onclick="openGoalModal()">мақсат: 100 000</div>
+      </div>
+    </div>
+    <div class="pct-badge" id="pctBadge">0% — жол басталды</div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-icon">🗺️</div>
+      <div class="stat-val" id="statKm">0.0</div>
+      <div class="stat-lbl">км</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">🔥</div>
+      <div class="stat-val" id="statCal">0</div>
+      <div class="stat-lbl">калория</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">⏱</div>
+      <div class="stat-val" id="statMin">0</div>
+      <div class="stat-lbl">минут</div>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="status-pill">
+    <div class="pulse-dot" id="pulseDot"></div>
+    <span class="status-text" id="statusText">Бастау үшін батырманы басыңыз</span>
+  </div>
+
+  <!-- BUTTONS -->
+  <div class="btn-row">
+    <button class="btn btn-start" id="startBtn" onclick="toggleTracking()">▶ Бастау</button>
+    <button class="btn btn-reset" onclick="resetSteps()">Тазалау</button>
+  </div>
+
+  <!-- ACHIEVE -->
+  <div class="achieve" id="achieve">
+    <div class="achieve-icon">🏆</div>
+    <div class="achieve-text">Мақсатқа жеттіңіз!</div>
+    <div class="achieve-sub" id="achieveSub">Бүгін мақсатқа жеттіңіз — керемет!</div>
+  </div>
+
+  <!-- WEEK -->
+  <div class="week-card">
+    <div class="week-header">
+      <span class="week-title">Апта бойынша</span>
+      <span class="week-total" id="weekTotal">0 қадам</span>
+    </div>
+    <div class="week-bars" id="weekBars"></div>
+  </div>
+
+  <!-- BOT SEND -->
+  <div class="bot-card">
+    <div class="bot-card-title">Ботқа жіберу</div>
+    <div class="bot-card-sub">Бүгінгі нәтижені Telegram ботқа сақтаңыз</div>
+    <button class="btn-send" onclick="sendToBot()">📤 Ботқа жіберу</button>
+  </div>
+
+  <p class="footer-note">
+    Телефонды қалтаға салып жүріңіз — сенсор автоматты есептейді
+  </p>
+
+</div>
+
+<!-- GOAL MODAL -->
+<div class="modal-overlay" id="goalModal" onclick="closeGoalModal(event)">
+  <div class="modal">
+    <div class="modal-title">🎯 Мақсат белгілеу</div>
+    <div class="modal-sub">Күнделікті қадам мақсатын таңдаңыз</div>
+    <div class="goal-presets">
+      <div class="goal-preset" data-val="5000" onclick="selectPreset(5000)">5 000</div>
+      <div class="goal-preset" data-val="7500" onclick="selectPreset(7500)">7 500</div>
+      <div class="goal-preset" data-val="10000" onclick="selectPreset(10000)">10 000</div>
+      <div class="goal-preset" data-val="15000" onclick="selectPreset(15000)">15 000</div>
+    </div>
+    <div class="goal-input-wrap">
+      <input class="goal-input" id="goalInput" type="number" placeholder="Өз санын жазыңыз..." min="1" />
+      <button class="btn-save" onclick="saveGoal()">Сақтау</button>
+    </div>
+    <button class="btn-cancel" onclick="closeGoalModal()">Бас тарту</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // Telegram Web App init
+  const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
+
+  const CIRCUMFERENCE = 2 * Math.PI * 85; // ~534
+  const DAYS_KK = ['Жс','Дс','Сс','Ср','Бс','Жм','Сн'];
+
+  let steps = 0;
+  let goal = 100000;
+  let isTracking = false;
+  let lastAcc = null;
+  let startTime = null;
+  let lastStepTime = 0;
+  let minInterval = 250;
+  let threshold = 8;
+  let fallbackInterval = null;
+  let minuteTimer = null;
+
+  const today = new Date().toDateString();
+
+  // Date label
+  const now = new Date();
+  document.getElementById('dateLabel').textContent =
+    now.toLocaleDateString('kk-KZ', { day: 'numeric', month: 'long' });
+
+  // ── STORAGE ────────────────────────────────────────────────────────────────
+  function loadWeek() {
+    try { return JSON.parse(localStorage.getItem('sr_week') || '{}'); } catch { return {}; }
+  }
+  function saveWeek(data) {
+    try { localStorage.setItem('sr_week', JSON.stringify(data)); } catch {}
+  }
+  function loadGoal() {
+    try { return parseInt(localStorage.getItem('sr_goal') || '100000'); } catch { return 100000; }
+  }
+  function saveGoalStorage(val) {
+    try { localStorage.setItem('sr_goal', String(val)); } catch {}
+  }
+
+  // ── UI UPDATE ──────────────────────────────────────────────────────────────
+  function updateUI() {
+    // Steps
+    document.getElementById('stepCount').textContent = steps.toLocaleString();
+
+    // Goal label
+    document.getElementById('goalLabel').textContent = 'мақсат: ' + goal.toLocaleString();
+
+    // Ring
+    const pct = Math.min(steps / goal, 1);
+    const offset = CIRCUMFERENCE - pct * CIRCUMFERENCE;
+    document.getElementById('ringFill').style.strokeDashoffset = offset;
+    document.getElementById('ringFill').style.strokeDasharray = CIRCUMFERENCE;
+
+    // Badge
+    const pctInt = Math.round(pct * 100);
+    let badgeText = '';
+    if (pctInt === 0) badgeText = '0% — жол басталды';
+    else if (pctInt < 25) badgeText = `${pctInt}% — жаңа бастадыңыз`;
+    else if (pctInt < 50) badgeText = `${pctInt}% — жақсы бастама!`;
+    else if (pctInt < 75) badgeText = `${pctInt}% — жарты жол!`;
+    else if (pctInt < 100) badgeText = `${pctInt}% — аз қалды!`;
+    else badgeText = '100% — мақсатқа жеттіңіз!';
+    document.getElementById('pctBadge').textContent = badgeText;
+
+    // Stats
+    document.getElementById('statKm').textContent = (steps * 0.00078).toFixed(2);
+    document.getElementById('statCal').textContent = Math.round(steps * 0.04);
+    if (startTime) {
+      document.getElementById('statMin').textContent = Math.round((Date.now() - startTime) / 60000);
+    }
+
+    // Achieve
+    if (steps >= goal) {
+      const el = document.getElementById('achieve');
+      el.style.display = 'block';
+      document.getElementById('achieveSub').textContent =
+        `Бүгін ${steps.toLocaleString()} қадам жүрдіңіз — керемет!`;
+    }
+
+    // Presets highlight
+    document.querySelectorAll('.goal-preset').forEach(el => {
+      el.classList.toggle('selected', parseInt(el.dataset.val) === goal);
+    });
+
+    // Save
+    const week = loadWeek();
+    week[today] = steps;
+    saveWeek(week);
+
+    renderWeek();
+  }
+
+  function renderWeek() {
+    const week = loadWeek();
+    let weekTotal = 0;
+    const bars = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const key = d.toDateString();
+      const s = week[key] || 0;
+      weekTotal += s;
+      bars.push({ label: DAYS_KK[d.getDay()], steps: s, isToday: i === 0 });
+    }
+    document.getElementById('weekTotal').textContent = weekTotal.toLocaleString() + ' қадам';
+
+    const maxSteps = Math.max(...bars.map(b => b.steps), goal);
+    const container = document.getElementById('weekBars');
+    container.innerHTML = '';
+    bars.forEach(b => {
+      const pct = Math.min(b.steps / maxSteps * 100, 100);
+      const col = document.createElement('div');
+      col.className = 'wbar-col';
+      col.innerHTML = `
+        <div class="wbar-bg">
+          <div class="wbar-fill ${b.isToday ? 'today' : ''}" style="height:${pct}%"></div>
+        </div>
+        <div class="wbar-day">${b.label}</div>
+      `;
+      container.appendChild(col);
+    });
+  }
+
+  // ── STEP LOGIC ─────────────────────────────────────────────────────────────
+  function flashStep() {
+    const el = document.getElementById('stepCount');
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
+    const dot = document.getElementById('pulseDot');
+    dot.style.background = '#5DCAA5';
+    setTimeout(() => dot.style.background = '', 150);
+  }
+
+  function countStep() {
+    const now = Date.now();
+    if (now - lastStepTime < minInterval) return;
+    lastStepTime = now;
+    steps++;
+    flashStep();
+    updateUI();
+  }
+
+  function handleMotion(e) {
+    if (!isTracking) return;
+    // accelerationIncludingGravity жақсырақ жұмыс істейді (gravity бар)
+    const acc = e.accelerationIncludingGravity || e.acceleration;
+    if (!acc) return;
+    const x = acc.x || 0;
+    const y = acc.y || 0;
+    const z = acc.z || 0;
+    if (lastAcc) {
+      const delta = Math.sqrt(
+        Math.pow(x - lastAcc.x, 2) +
+        Math.pow(y - lastAcc.y, 2) +
+        Math.pow(z - lastAcc.z, 2)
+      );
+      if (delta > threshold) countStep();
+    }
+    lastAcc = { x, y, z };
+  }
+
+  // ── TRACKING ───────────────────────────────────────────────────────────────
+  function startTracking() {
+    isTracking = true;
+    startTime = startTime || Date.now();
+    document.getElementById('startBtn').textContent = '⏸ Тоқтату';
+    document.getElementById('startBtn').style.background = '#888780';
+    document.getElementById('pulseDot').className = 'pulse-dot active';
+    document.getElementById('statusText').textContent = 'Белсенді — телефонды алып жүріңіз!';
+
+    // Минут таймері
+    if (!minuteTimer) {
+      minuteTimer = setInterval(() => {
+        if (startTime) {
+          document.getElementById('statMin').textContent =
+            Math.round((Date.now() - startTime) / 60000);
+        }
+      }, 10000);
+    }
+  }
+
+  function stopTracking() {
+    isTracking = false;
+    window.removeEventListener('devicemotion', handleMotion);
+    if (fallbackInterval) { clearInterval(fallbackInterval); fallbackInterval = null; }
+    document.getElementById('startBtn').textContent = '▶ Жалғастыру';
+    document.getElementById('startBtn').style.background = 'var(--green)';
+    document.getElementById('pulseDot').className = 'pulse-dot';
+    document.getElementById('statusText').textContent = 'Тоқтатылды. Жалғастыру үшін басыңыз.';
+  }
+
+  function startWithSensor() {
+    startTracking();
+    window.addEventListener('devicemotion', handleMotion);
+    document.getElementById('statusText').textContent = 'Сенсор белсенді — жүріңіз!';
+  }
+
+  function startFallback() {
+    startTracking();
+    document.getElementById('statusText').textContent = 'Симуляция режимі — шайқаңыз';
+    fallbackInterval = setInterval(() => {
+      if (!isTracking) return;
+      if (Math.random() > 0.45) countStep();
+    }, 700);
+  }
+
+  function toggleTracking() {
+    if (isTracking) { stopTracking(); return; }
+
+    if (typeof DeviceMotionEvent !== 'undefined' &&
+        typeof DeviceMotionEvent.requestPermission === 'function') {
+      DeviceMotionEvent.requestPermission()
+        .then(state => { state === 'granted' ? startWithSensor() : startFallback(); })
+        .catch(() => startFallback());
+    } else if (typeof DeviceMotionEvent !== 'undefined') {
+      startWithSensor();
+    } else {
+      startFallback();
+    }
+  }
+
+  function resetSteps() {
+    if (steps === 0) return;
+    if (!confirm('Бүгінгі ' + steps.toLocaleString() + ' қадамды тазалайсыз ба?')) return;
+    steps = 0;
+    startTime = null;
+    if (minuteTimer) { clearInterval(minuteTimer); minuteTimer = null; }
+    document.getElementById('achieve').style.display = 'none';
+    document.getElementById('statMin').textContent = '0';
+    const week = loadWeek();
+    week[today] = 0;
+    saveWeek(week);
+    updateUI();
+  }
+
+  // ── GOAL MODAL ─────────────────────────────────────────────────────────────
+  function openGoalModal() {
+    document.getElementById('goalModal').classList.add('open');
+    document.getElementById('goalInput').value = '';
+    document.querySelectorAll('.goal-preset').forEach(el => {
+      el.classList.toggle('selected', parseInt(el.dataset.val) === goal);
+    });
+  }
+
+  function closeGoalModal(e) {
+    if (!e || e.target === document.getElementById('goalModal')) {
+      document.getElementById('goalModal').classList.remove('open');
+    }
+  }
+
+  function selectPreset(val) {
+    goal = val;
+    document.getElementById('goalInput').value = '';
+    document.querySelectorAll('.goal-preset').forEach(el => {
+      el.classList.toggle('selected', parseInt(el.dataset.val) === val);
+    });
+  }
+
+  function saveGoal() {
+    const inputVal = parseInt(document.getElementById('goalInput').value);
+    if (document.getElementById('goalInput').value && (!inputVal || inputVal < 1)) {
+      showToast('❌ 1-ден үлкен санды жазыңыз');
+      return;
+    }
+    if (document.getElementById('goalInput').value && inputVal) {
+      goal = inputVal;
+    }
+    saveGoalStorage(goal);
+    closeGoalModal();
+    updateUI();
+    showToast('✅ Мақсат сақталды: ' + goal.toLocaleString() + ' қадам');
+  }
+
+  // ── TOAST ──────────────────────────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // ── SEND TO BOT ────────────────────────────────────────────────────────────
+  function sendToBot() {
+    if (steps === 0) {
+      showToast('❌ Алдымен қадам жүріңіз!');
+      return;
+    }
+
+    const km = (steps * 0.00078).toFixed(2);
+    const cal = Math.round(steps * 0.04);
+    const min = startTime ? Math.round((Date.now() - startTime) / 60000) : 0;
+    const pct = Math.round(steps / goal * 100);
+
+    const payload = JSON.stringify({
+      type: 'steps',
+      steps: steps,
+      goal: goal,
+      km: parseFloat(km),
+      cal: cal,
+      min: min,
+      pct: pct,
+      date: today
+    });
+
+    try {
+      if (tg && typeof tg.sendData === 'function') {
+        tg.sendData(payload);
+        showToast('✅ Ботқа жіберілді!');
+      } else {
+        // Telegram сыртында (браузер) — хабарлама көрсету
+        showToast('⚠️ Тек Telegram ішінде жұмыс істейді');
+      }
+    } catch (err) {
+      showToast('❌ Қате: ' + err.message);
+    }
+  }
+
+  // ── INIT ───────────────────────────────────────────────────────────────────
+  goal = loadGoal();
+  const saved = loadWeek();
+  if (saved[today]) steps = saved[today];
+  updateUI();
+</script>
+</body>
+</html>
